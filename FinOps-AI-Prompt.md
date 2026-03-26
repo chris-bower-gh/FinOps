@@ -176,6 +176,51 @@ Read the handover document (`HANDOVER.md`) if one exists in the customer folder 
 
 ---
 
+## Report Style Guidelines
+
+These rules apply to every section of every report. Follow them without exception.
+
+### Use bullet points, not prose paragraphs
+
+Bullet points translate better when the markdown is pasted into Word and are easier for the customer to scan. The default for findings, recommendations, and supporting evidence is a bullet list — not a paragraph. Reserve prose only for introductory sentences (one or two maximum) that give context before a list.
+
+**Avoid this** (prose paragraph):
+
+> The three separate plans are architecturally required — Standard Logic Apps support VNet integration at the plan level. Each environment has its own VNet, so each plan must remain separate.
+
+**Use this instead** (bullet list):
+
+- Three separate plans are architecturally required — Standard Logic Apps support VNet integration at the plan level
+- Each environment has its own VNet; consolidating plans would break connectivity
+
+### Open every section with a resource inventory table
+
+Before any analysis, include a table listing every resource of that type in scope — even those where the recommendation is "no action." The table should show name, current configuration, key utilisation or configuration data, and the recommended action.
+
+Example columns for each resource type:
+
+- **SQL Elastic Pools:** Pool, Tier, Capacity, 30d Avg%, 30d Max%, Action
+- **App Service Plans:** Plan, SKU, OS, App Count, Action
+- **Virtual Machines:** VM, Size, vCPU, RAM, CPU Avg, Available Mem, Auto-shutdown, Action
+- **Backup Vaults:** Vault, Redundancy, Daily Retention, Monthly Cost, Action
+- **Bastion:** Instance, SKU, Monthly Cost, Action
+
+This gives the customer a full picture of their estate, not just the resources being changed.
+
+### Structure recommendations as numbered lists
+
+When the recommendation involves sequential steps (e.g. disable → fix → re-enable), use a numbered list. When listing parallel actions or pre-checks, use bullet points.
+
+### Group resources within a section
+
+Use H4 subheadings (`####`) to group resources within a section — for example, "Non-production pools — idle compute" and "Production pool — over-provisioned." This makes long sections scannable.
+
+### Keep prose paragraphs to a maximum of two sentences
+
+If a paragraph runs to three or more sentences, break it into bullets. The only exception is the Overview section of the report, which may use full paragraphs.
+
+---
+
 ## Scripts to Run — Phase-by-Phase Runbook
 
 When starting a new engagement, tell the user exactly which scripts to run in order. All scripts are in `FinOps/scripts/`. Full documentation is in `scripts/README.md`.
