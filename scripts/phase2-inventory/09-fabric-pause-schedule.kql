@@ -1,0 +1,7 @@
+// Check for automation runbooks or Logic Apps that pause/resume Fabric capacity
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type == "microsoft.automation/automationaccounts/runbooks"
+    or type == "microsoft.logic/workflows"
+| where tolower(name) contains "fabric" or tolower(name) contains "capacity" or tolower(name) contains "pause"
+| project name, type, resourceGroup, subscriptionId, location

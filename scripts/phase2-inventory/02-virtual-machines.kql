@@ -1,0 +1,12 @@
+// Virtual Machines — inventory with size, vCPU, RAM, power state
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type == "microsoft.compute/virtualmachines"
+| extend powerState = tostring(properties.extended.instanceView.powerState.displayStatus)
+| extend vmSize = tostring(properties.hardwareProfile.vmSize)
+| join kind=leftouter (
+    Resources
+    | where type == "microsoft.compute/virtualmachines"
+    | mv-expand sku = properties.hardwareProfile
+) on id
+| project name, resourceGroup, subscriptionId, vmSize, powerState, location

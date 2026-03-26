@@ -1,0 +1,9 @@
+// Microsoft Fabric Capacities — SKU and state
+// Run in: Azure Resource Graph Explorer
+// NOTE: F-series = pauseable (billing stops when paused). P-series = cannot be paused.
+Resources
+| where type == "microsoft.fabric/capacities"
+| extend skuName = tostring(sku.name)
+| extend skuTier = tostring(sku.tier)
+| extend state = tostring(properties.state)
+| project name, resourceGroup, subscriptionId, skuName, skuTier, state, location

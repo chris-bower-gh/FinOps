@@ -1,0 +1,10 @@
+// SQL Elastic Pools — inventory and DTU/vCore tier
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type == "microsoft.sql/servers/elasticpools"
+| extend edition = tostring(properties.edition)
+| extend dtuCapacity = toint(properties.dtu)
+| extend vcoreCapacity = toint(properties.capacity)
+| extend storageGB = toint(properties.storageGB)
+| extend zoneRedundant = tobool(properties.zoneRedundant)
+| project name, resourceGroup, subscriptionId, edition, dtuCapacity, vcoreCapacity, storageGB, zoneRedundant, location

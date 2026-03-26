@@ -1,0 +1,6 @@
+// SQL Elastic Pools — get server names (needed to build metric resource IDs)
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type == "microsoft.sql/servers/elasticpools"
+| extend serverName = tostring(split(id, "/")[8])
+| project poolName = name, serverName, resourceGroup, subscriptionId, location

@@ -1,0 +1,7 @@
+// Front Door profiles
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type == "microsoft.cdn/profiles"
+| extend skuName = tostring(sku.name)
+| extend provisioningState = tostring(properties.provisioningState)
+| project name, resourceGroup, subscriptionId, skuName, provisioningState, location

@@ -1,0 +1,12 @@
+// Synapse Analytics — workspaces, SQL pools, Spark pools with auto-pause config
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type in (
+    "microsoft.synapse/workspaces",
+    "microsoft.synapse/workspaces/sqlpools",
+    "microsoft.synapse/workspaces/bigdatapools"
+)
+| extend skuName = tostring(sku.name)
+| extend status = tostring(properties.status)
+| extend autoPause = properties.autoPause
+| project name, type, resourceGroup, subscriptionId, skuName, status, autoPause, location

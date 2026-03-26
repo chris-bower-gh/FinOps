@@ -1,0 +1,8 @@
+// Application Gateway and Front Door — SKU/tier
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type == "microsoft.network/applicationgateways"
+| extend skuName = tostring(properties.sku.name)
+| extend skuTier = tostring(properties.sku.tier)
+| extend capacity = toint(properties.sku.capacity)
+| project name, type, resourceGroup, subscriptionId, skuName, skuTier, capacity, location

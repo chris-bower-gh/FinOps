@@ -1,0 +1,8 @@
+// Storage Accounts — inventory with SKU, kind, and access tier
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type == "microsoft.storage/storageaccounts"
+| extend accountSku = tostring(sku.name)
+| extend accountKind = tostring(kind)
+| extend accessTier = tostring(properties.accessTier)
+| project name, accountSku, accountKind, accessTier, resourceGroup, subscriptionId, primaryLocation = location

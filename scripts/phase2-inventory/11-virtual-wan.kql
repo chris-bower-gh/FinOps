@@ -1,0 +1,13 @@
+// Virtual WAN — hubs, VPN gateways, P2S gateways
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type in (
+    "microsoft.network/virtualwans",
+    "microsoft.network/virtualhubs",
+    "microsoft.network/vpngateways",
+    "microsoft.network/p2svpngateways"
+)
+| extend skuName = tostring(sku.name)
+| extend provisioningState = tostring(properties.provisioningState)
+| extend virtualWan = tostring(properties.virtualWan.id)
+| project name, type, resourceGroup, subscriptionId, skuName, provisioningState, virtualWan, location

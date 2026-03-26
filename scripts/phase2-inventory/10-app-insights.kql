@@ -1,0 +1,8 @@
+// Application Insights instances — workspace linkage and retention
+// Run in: Azure Resource Graph Explorer
+// NOTE: Instances pointing to DefaultWorkspace-* are unmanaged and may incur unexpected costs.
+Resources
+| where type == "microsoft.insights/components"
+| extend workspaceId = tostring(properties.WorkspaceResourceId)
+| extend retentionDays = toint(properties.RetentionInDays)
+| project name, resourceGroup, subscriptionId, workspaceId, retentionDays, location

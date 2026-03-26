@@ -1,0 +1,6 @@
+// Data Factory instances
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type == "microsoft.datafactory/factories"
+| extend provisioningState = tostring(properties.provisioningState)
+| project name, resourceGroup, subscriptionId, provisioningState, location

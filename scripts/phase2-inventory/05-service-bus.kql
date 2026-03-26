@@ -1,0 +1,8 @@
+// Service Bus namespaces — inventory with tier
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type == "microsoft.servicebus/namespaces"
+| extend tier = tostring(sku.tier)
+| extend skuName = tostring(sku.name)
+| extend capacity = toint(sku.capacity)
+| project name, resourceGroup, subscriptionId, tier, skuName, capacity, location

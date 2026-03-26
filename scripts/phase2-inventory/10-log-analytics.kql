@@ -1,0 +1,8 @@
+// Log Analytics Workspaces — SKU, retention, daily quota
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type == "microsoft.operationalinsights/workspaces"
+| extend sku = tostring(properties.sku.name)
+| extend retentionDays = toint(properties.retentionInDays)
+| extend dailyQuotaGb = todouble(properties.workspaceCapping.dailyQuotaGb)
+| project name, resourceGroup, subscriptionId, sku, retentionDays, dailyQuotaGb, location

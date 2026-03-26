@@ -1,0 +1,8 @@
+// Azure Firewall — tier and policy
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type == "microsoft.network/azurefirewalls"
+| extend tier = tostring(properties.sku.tier)
+| extend firewallPolicy = tostring(properties.firewallPolicy.id)
+| extend threatIntelMode = tostring(properties.threatIntelMode)
+| project name, resourceGroup, subscriptionId, tier, firewallPolicy, threatIntelMode, location

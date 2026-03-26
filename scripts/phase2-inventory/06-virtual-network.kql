@@ -1,0 +1,20 @@
+// Virtual Network resources — peerings, public IPs, load balancers, NAT gateways, private endpoints
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type in (
+    "microsoft.network/virtualnetworks",
+    "microsoft.network/publicipaddresses",
+    "microsoft.network/loadbalancers",
+    "microsoft.network/natgateways",
+    "microsoft.network/privateendpoints",
+    "microsoft.network/virtualnetworkpeerings"
+)
+| extend allocationMethod = tostring(properties.publicIPAllocationMethod)
+| extend ipAddress = tostring(properties.ipAddress)
+| extend attachedTo = tostring(coalesce(
+    properties.ipConfiguration.id,
+    properties.natGateway.id
+))
+| extend skuName = tostring(sku.name)
+| project name, type, resourceGroup, subscriptionId, skuName, allocationMethod, ipAddress, attachedTo, location
+| order by type asc

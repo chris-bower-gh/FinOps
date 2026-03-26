@@ -1,0 +1,10 @@
+// Managed Disks — inventory with attachment status
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type == "microsoft.compute/disks"
+| extend diskState = tostring(properties.diskState)
+| extend diskSizeGB = toint(properties.diskSizeGB)
+| extend sku = tostring(sku.name)
+| extend attachedTo = tostring(properties.managedBy)
+| project name, resourceGroup, subscriptionId, sku, diskSizeGB, diskState, attachedTo, location
+| order by diskState asc, diskSizeGB desc

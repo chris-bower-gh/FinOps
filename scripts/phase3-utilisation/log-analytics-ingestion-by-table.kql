@@ -1,0 +1,11 @@
+// Log Analytics — billable ingestion by table (last 30 days)
+// Run in: Log Analytics workspace → Logs (run per workspace)
+// Identifies noisy log sources driving ingestion costs
+// Common culprits: StorageFileLogs, AzureMetrics (from AllMetrics diag settings),
+//                  AzureDiagnostics (legacy format), AppTraces/AppDependencies (App Insights)
+Usage
+| where TimeGenerated > ago(30d)
+| where IsBillable == true
+| summarize TotalGB = round(sum(Quantity) / 1024, 2) by DataType
+| order by TotalGB desc
+| take 20

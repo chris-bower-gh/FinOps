@@ -1,0 +1,11 @@
+// Logic Apps — Standard (workflowapp) instances and their hosting plans
+// Run in: Azure Resource Graph Explorer
+// NOTE: Consumption Logic Apps use type "microsoft.logic/workflows"
+//       Standard Logic Apps use type "microsoft.web/sites" with kind "workflowapp"
+Resources
+| where type == "microsoft.web/sites"
+| where kind contains "workflowapp"
+| extend serverFarmId = tostring(properties.serverFarmId)
+| extend state = tostring(properties.state)
+| project name, resourceGroup, subscriptionId, kind, state, serverFarmId, location
+| order by name asc

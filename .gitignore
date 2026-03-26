@@ -1,0 +1,12 @@
+# Claude Code session data — never commit
+.claude/
+
+# Customer engagement folders — contain client data, keep off GitHub
+# Add each customer folder explicitly, or use a wildcard pattern
+cormar-carpets/
+
+# General
+*.docx
+*.xlsx
+Thumbs.db
+.DS_Store

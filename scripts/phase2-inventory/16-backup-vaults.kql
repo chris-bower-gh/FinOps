@@ -1,0 +1,7 @@
+// Recovery Services Vaults — redundancy settings
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type == "microsoft.recoveryservices/vaults"
+| extend redundancy = tostring(properties.redundancySettings.standardTierStorageRedundancy)
+| extend crossRegionRestore = tostring(properties.redundancySettings.crossRegionRestore)
+| project name, resourceGroup, subscriptionId, redundancy, crossRegionRestore, location

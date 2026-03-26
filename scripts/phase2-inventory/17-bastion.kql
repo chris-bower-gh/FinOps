@@ -1,0 +1,7 @@
+// Azure Bastion — SKU check
+// Run in: Azure Resource Graph Explorer
+// SKU tiers: Developer (free), Basic (~£115/month), Standard (~£150/month)
+Resources
+| where type == "microsoft.network/bastionhosts"
+| extend skuName = tostring(sku.name)
+| project name, resourceGroup, subscriptionId, skuName, location

@@ -1,0 +1,23 @@
+// App Service Plans — inventory with SKU, OS, and app count
+// Run in: Azure Resource Graph Explorer
+//
+// IMPORTANT: Do not rely on cost exports alone to identify over-provisioned plans.
+// Plans on non-Basic tiers may have modest individual costs but still be right-sizing candidates.
+// App count is critical — a plan with 0 apps is pure waste regardless of SKU.
+// OS type determines migration path (Windows plans cannot move to Linux plans and vice versa).
+Resources
+| where type == "microsoft.web/serverfarms"
+| extend skuName     = tostring(sku.name)
+| extend skuTier     = tostring(sku.tier)
+| extend workerCount = toint(properties.numberOfWorkers)
+| extend os          = iif(tolower(kind) contains "linux", "Linux", "Windows")
+| extend planId      = tolower(id)
+| join kind=leftouter (
+    Resources
+    | where type == "microsoft.web/sites"
+    | extend planId = tolower(tostring(properties.serverFarmId))
+    | summarize appCount = count() by planId
+) on planId
+| extend appCount = iif(isnull(appCount), 0, appCount)
+| project name, resourceGroup, subscriptionId, skuTier, skuName, os, appCount, workerCount, location
+| order by skuTier asc, skuName asc

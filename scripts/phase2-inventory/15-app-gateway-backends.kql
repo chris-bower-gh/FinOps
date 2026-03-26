@@ -1,0 +1,8 @@
+// Application Gateway — backend pool membership (check for empty pools)
+// Run in: Azure Resource Graph Explorer
+Resources
+| where type == "microsoft.network/applicationgateways"
+| mv-expand backend = properties.backendAddressPools
+| extend poolName = tostring(backend.name)
+| extend backendCount = array_length(backend.properties.backendAddresses)
+| project name, resourceGroup, poolName, backendCount
