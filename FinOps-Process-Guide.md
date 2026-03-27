@@ -57,7 +57,7 @@ do {
     $skip += 1000
 } while ($result.data.Count -eq 1000)
 
-$outputDir = "C:\Users\ChrisBower\OneDrive - Synextra Limited\Documents\VS Code\FinOps\[customer-folder]"
+$outputDir = ".\[customer-folder]"   # relative to where you cloned/placed the FinOps repo
 
 # Save full resource list
 $allResources | ConvertTo-Json -Depth 10 | Out-File "$outputDir\all-resources.json" -Encoding utf8
