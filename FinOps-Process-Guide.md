@@ -456,12 +456,16 @@ Cross-reference each flagged resource against its current and proposed SKU price
 
 ## Step 16 — Report Production
 
-Produce the Word report following the format established in previous engagements:
+Use `scripts/generate_report.py` as the starting point. Copy it into the customer folder, set `TEMPLATE_PATH` to any previous engagement `.docx`, set `OUTPUT_PATH`, and populate with findings. Run with `python generate_report.py`.
 
-1. Executive summary with total potential saving
-2. Findings by category with evidence (metrics screenshots or data)
-3. Summary table: Item | Monthly Saving | Effort | Priority
+The report structure is:
+
+1. Overview — scope and total spend
+2. Findings by category (one H2 per category, H3 per sub-finding, evidence table, saving line)
+3. Summary table: Finding | Monthly Saving | Effort | Risk
 4. Pricing note: figures based on Azure Retail Prices API; actual savings may vary based on CSP discounting
+
+See `FinOps-AI-Prompt.md` → *Generating the Word Report* for formatting rules and AI guidance.
 
 ---
 

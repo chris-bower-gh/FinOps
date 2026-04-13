@@ -40,6 +40,14 @@ Before running any PowerShell script:
 
 ---
 
+## Report Generator
+
+| File | Description |
+| --- | --- |
+| `generate_report.py` | Word report template — copy to customer folder and populate with findings. Opens an existing engagement `.docx` as a style template. See file docstring for full formatting spec. Requires `pip install python-docx`. |
+
+---
+
 ## Script Index
 
 ### phase2-inventory/

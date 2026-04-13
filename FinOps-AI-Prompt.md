@@ -176,6 +176,19 @@ Read the handover document (`HANDOVER.md`) if one exists in the customer folder 
 
 ---
 
+## Generating the Word Report
+
+When the analyst is ready to produce the final `.docx` deliverable, use `scripts/generate_report.py` as the starting point.
+
+- It is a template — not a customer-specific file. Copy it into the customer folder and populate with actual findings.
+- It opens an existing engagement `.docx` as a style template (inheriting margins, fonts, heading colours, numbering definitions) and strips all content before rebuilding.
+- Set `TEMPLATE_PATH` to any previous engagement `.docx` and `OUTPUT_PATH` to the new report path.
+- All formatting helpers are included: `add_table`, `add_bullet`, `add_saving`, `add_para`.
+- **Critical**: `add_bullet()` must inject `w:numPr` XML with `numId=15` — applying `style='List Paragraph'` alone does not render bullet characters in Word. The template handles this correctly; do not simplify it.
+- The docstring at the top of the file documents the full formatting spec (page size, margins, fonts, colours, table style).
+
+---
+
 ## Report Style Guidelines
 
 These rules apply to every section of every report. Follow them without exception.
