@@ -14,7 +14,7 @@ $results = foreach ($ns in $serviceBusNamespaces) {
             $raw = az monitor metrics list `
                 --resource "/subscriptions/$($ns.Sub)/resourceGroups/$($ns.RG)/providers/Microsoft.ServiceBus/namespaces/$($ns.Name)" `
                 --metric $metric --start-time $start --end-time $end `
-                --interval P1D --aggregation Total --output json 2>$null | ConvertFrom-Json
+                --interval P1D --aggregation Total --output json --only-show-errors | ConvertFrom-Json
             $total = 0
             if ($raw -and $raw.value -and $raw.value.Count -gt 0 -and
                 $raw.value[0].timeseries -and $raw.value[0].timeseries.Count -gt 0) {

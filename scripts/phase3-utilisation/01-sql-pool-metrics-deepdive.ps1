@@ -22,7 +22,7 @@ foreach ($p in $sqlPoolsDeepDive) {
     $raw = az monitor metrics list `
         --resource "/subscriptions/$($p.Sub)/resourceGroups/$($p.RG)/providers/Microsoft.Sql/servers/$($p.Server)/elasticPools/$($p.Pool)" `
         --metric $metric --start-time $start --end-time $end `
-        --interval PT1M --aggregation Maximum --output json 2>$null | ConvertFrom-Json
+        --interval PT1M --aggregation Maximum --output json --only-show-errors | ConvertFrom-Json
 
     if (-not ($raw -and $raw.value -and $raw.value[0].timeseries)) {
         Write-Warning "No data returned for $($p.Pool)"

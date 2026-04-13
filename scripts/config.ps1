@@ -6,7 +6,7 @@ param()
 # ============================================================
 # FinOps Engagement — Central Configuration
 # ============================================================
-# Customer:  <CustomerName>
+# Customer:  <Customer Name>
 # Configured: <Date>
 #
 # Set all variables in this file before running any scripts.
@@ -20,13 +20,12 @@ param()
 
 # All subscription IDs in scope
 $allSubscriptions = @(
-    # "<subscription-id-1>",
-    # "<subscription-id-2>",
+    # "<sub-id>",  # <Subscription Name>
 )
 
 # Prod-only subscriptions (used for Defender, security checks)
 $prodSubscriptions = @(
-    # "<subscription-id-prod-1>",
+    # "<sub-id>",  # <Subscription Name>
 )
 
 # ------------------------------------------------------------
@@ -63,7 +62,7 @@ $appServicePlans = @(
 # CandidateSku = target SKU being considered (used to show headroom check)
 # ------------------------------------------------------------
 $appServicePlansDeepDive = @(
-    # @{ Sub="<sub-id>"; RG="<resource-group>"; Name="<plan-name>"; Sku="P1v3"; CandidateSku="B2" },
+    # @{ Sub="<sub-id>"; RG="<resource-group>"; Name="<plan-name>"; Sku="P2mv3"; CandidateSku="P1v3" }
 )
 
 # ------------------------------------------------------------
@@ -89,6 +88,7 @@ $dataFactories = @(
 # ------------------------------------------------------------
 # Backup / Recovery Services Vaults
 # Used by: phase2-inventory/16-backup-retention.ps1
+# Note: ResourceMove-* vaults excluded (temporary migration artefacts)
 # ------------------------------------------------------------
 $backupVaults = @(
     # @{ Sub="<sub-id>"; RG="<resource-group>"; Name="<vault-name>" },
@@ -98,7 +98,9 @@ $backupVaults = @(
 # Azure Firewall
 # Used by: phase2-inventory/08-azure-firewall-diagnostics.ps1
 # ------------------------------------------------------------
-$firewallResourceId = "/subscriptions/<sub-id>/resourceGroups/<resource-group>/providers/Microsoft.Network/azureFirewalls/<firewall-name>"
+$firewallResourceIds = @(
+    # "/subscriptions/<sub-id>/resourceGroups/<resource-group>/providers/Microsoft.Network/azureFirewalls/<firewall-name>",
+)
 
 # ------------------------------------------------------------
 # Virtual WAN Hubs (check each for active traffic)
@@ -109,8 +111,10 @@ $vwanHubResourceIds = @(
 )
 
 # ------------------------------------------------------------
-# Output Directory
-# CSVs from all scripts are written here.
-# Default: current directory. Change to a customer subfolder if preferred.
+# Output Directories
+# Set both to the customer subfolder before running any scripts.
+# $resourceDataDir — Phase 2 inventory CSVs (resource configuration)
+# $outputDir       — Phase 3 metrics CSVs (utilisation data)
 # ------------------------------------------------------------
-$outputDir = "."
+$resourceDataDir = "C:\path\to\FinOps\<customer>\resource-data"
+$outputDir       = "C:\path\to\FinOps\<customer>\metrics"

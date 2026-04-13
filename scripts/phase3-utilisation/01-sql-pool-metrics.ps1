@@ -13,7 +13,7 @@ $results = foreach ($p in $sqlPools) {
         $raw = az monitor metrics list `
             --resource "/subscriptions/$($p.Sub)/resourceGroups/$($p.RG)/providers/Microsoft.Sql/servers/$($p.Server)/elasticPools/$($p.Pool)" `
             --metric $metric --start-time $start --end-time $end `
-            --interval PT1H --aggregation Average Maximum --output json 2>$null | ConvertFrom-Json
+            --interval PT1H --aggregation Average Maximum --output json --only-show-errors | ConvertFrom-Json
         if ($raw -and $raw.value) {
             $data = $raw.value[0].timeseries[0].data | Where-Object { $_.average -ne $null }
             [PSCustomObject]@{

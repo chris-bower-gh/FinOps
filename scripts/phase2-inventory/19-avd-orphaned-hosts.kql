@@ -1,0 +1,37 @@
+// AVD Orphaned Session Hosts — VMs that look like AVD hosts but are not registered to any host pool
+// Run in: Resource Graph Explorer (scope: all subscriptions)
+// Output: Save as <customer>/resource-data/19-avd-orphaned-hosts.csv
+//
+// A VM is considered an AVD candidate if its name or resource group contains "avd".
+// Updater VMs are excluded — they are not session hosts and are covered separately.
+//
+// Orphaned = VM matches AVD criteria AND has no matching entry in desktopvirtualizationresources.
+// These VMs are incurring compute and disk costs without serving any AVD workload.
+// If running: immediate deallocation candidate. If deallocated: review whether VM and disks can be deleted.
+//
+// NOTE: desktopvirtualizationresources is a Resource Graph table — this query must be run
+// in Resource Graph Explorer, not Log Analytics.
+
+resources
+| where type =~ "microsoft.compute/virtualmachines"
+| where tolower(name) contains "avd"
+    or tolower(resourceGroup) contains "avd"
+| where not(tolower(name) contains "updater")
+| project
+    vmId         = tolower(id),
+    Name         = name,
+    ResourceGroup = resourceGroup,
+    SubscriptionId = subscriptionId,
+    Location     = location,
+    VmSize       = tostring(properties.hardwareProfile.vmSize),
+    PowerState   = tostring(properties.extended.instanceView.powerState.displayStatus),
+    OsType       = tostring(properties.storageProfile.osDisk.osType)
+| join kind=leftouter (
+    desktopvirtualizationresources
+    | where type =~ "microsoft.desktopvirtualization/hostpools/sessionhosts"
+    | extend vmResourceId = tolower(tostring(properties.resourceId))
+    | project vmResourceId
+) on $left.vmId == $right.vmResourceId
+| where isempty(vmResourceId)
+| project-away vmId, vmResourceId
+| order by ResourceGroup asc, Name asc

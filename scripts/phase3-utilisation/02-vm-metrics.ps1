@@ -8,13 +8,13 @@ $start = (Get-Date).AddDays(-30).ToString("yyyy-MM-ddTHH:mm:ssZ")
 
 $results = foreach ($sub in $allSubscriptions) {
     az account set --subscription $sub | Out-Null
-    $vms = az vm list --output json 2>$null | ConvertFrom-Json
+    $vms = az vm list --output json --only-show-errors | ConvertFrom-Json
     foreach ($vm in $vms) {
         foreach ($metric in @("Percentage CPU", "Available Memory Bytes")) {
             $raw = az monitor metrics list `
                 --resource $vm.id --metric $metric `
                 --start-time $start --end-time $end `
-                --interval PT1H --aggregation Average Maximum --output json 2>$null | ConvertFrom-Json
+                --interval PT1H --aggregation Average Maximum --output json --only-show-errors | ConvertFrom-Json
             if ($raw -and $raw.value -and $raw.value[0].timeseries) {
                 $data = $raw.value[0].timeseries[0].data | Where-Object { $_.average -ne $null }
                 [PSCustomObject]@{

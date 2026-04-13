@@ -1,0 +1,16 @@
+// AVD Host Pools — session limit, load balancer type, pool type
+// Run in: Resource Graph Explorer (scope: all subscriptions)
+// Output: Save as movera/resource-data/19-avd-hostpools.csv
+// Use the MaxSessionLimit values to populate the sessionLimits datatable
+// in the AVD utilisation query (phase3-utilisation/avd-utilisation.kql)
+
+resources
+| where type == "microsoft.desktopvirtualization/hostpools"
+| project
+    HostPoolName = name,
+    ResourceGroup = resourceGroup,
+    SubscriptionId = subscriptionId,
+    MaxSessionLimit = toint(properties.maxSessionLimit),
+    LoadBalancerType = tostring(properties.loadBalancerType),
+    HostPoolType = tostring(properties.hostPoolType)
+| order by HostPoolName asc

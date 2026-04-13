@@ -1,0 +1,598 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# AVD Orphaned Session Host Detector\n\nThis workbook identifies **orphaned Azure Virtual Desktop session hosts** — VMs that appear to be AVD-related but are **not currently registered** to any host pool.\n\n### Detection Criteria\nA VM is considered an AVD candidate if **any** of the following are true:\n- VM name contains the filter value (case-insensitive)\n- Resource group name contains the filter value (case-insensitive)\n- Any tag key or value contains the filter value (case-insensitive)\n\nVMs with `updater` in their name are treated as **master images** and shown in a dedicated section.\n\n> This workbook queries across **all subscriptions** your account has access to via Azure Resource Graph."
+      },
+      "name": "header"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "sub-param",
+            "version": "KqlParameterItem/1.0",
+            "name": "Subscriptions",
+            "type": 6,
+            "isRequired": true,
+            "multiSelect": true,
+            "quote": "'",
+            "delimiter": ",",
+            "typeSettings": {
+              "additionalResourceOptions": [
+                "value::all"
+              ],
+              "includeAll": true
+            },
+            "value": [
+              "value::all"
+            ]
+          },
+          {
+            "id": "name-filter",
+            "version": "KqlParameterItem/1.0",
+            "name": "NameFilter",
+            "label": "VM Name Filter",
+            "type": 1,
+            "value": "avd"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "parameters"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## Summary"
+      },
+      "name": "summary-header"
+    },
+    {
+      "type": 3,
+      "customWidth": "25",
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "resources\n| where type =~ \"microsoft.compute/virtualmachines\"\n| where tolower(name) contains tolower(\"{NameFilter}\")\n    or tolower(resourceGroup) contains tolower(\"{NameFilter}\")\n    or tolower(tostring(tags)) contains tolower(\"{NameFilter}\")\n| where not(tolower(name) contains \"updater\")\n| count\n| project Count, Label = \"🔎 Candidates\"",
+        "size": 4,
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "crossComponentResources": [
+          "{Subscriptions}"
+        ],
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Label",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "Count",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            },
+            "numberFormat": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "maximumFractionDigits": 0
+              }
+            }
+          },
+          "showBorder": true,
+          "size": "auto"
+        }
+      },
+      "name": "tile-candidates"
+    },
+    {
+      "type": 3,
+      "customWidth": "25",
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "desktopvirtualizationresources\n| where type =~ \"microsoft.desktopvirtualization/hostpools/sessionhosts\"\n| count\n| project Count, Label = \"✅ Registered\"",
+        "size": 4,
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "crossComponentResources": [
+          "{Subscriptions}"
+        ],
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Label",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "Count",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "green"
+            },
+            "numberFormat": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "maximumFractionDigits": 0
+              }
+            }
+          },
+          "showBorder": true,
+          "size": "auto"
+        }
+      },
+      "name": "tile-registered"
+    },
+    {
+      "type": 3,
+      "customWidth": "25",
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "resources\n| where type =~ \"microsoft.compute/virtualmachines\"\n| where tolower(name) contains tolower(\"{NameFilter}\")\n    or tolower(resourceGroup) contains tolower(\"{NameFilter}\")\n    or tolower(tostring(tags)) contains tolower(\"{NameFilter}\")\n| where not(tolower(name) contains \"updater\")\n| project vmId = tolower(id)\n| join kind=leftouter (\n    desktopvirtualizationresources\n    | where type =~ \"microsoft.desktopvirtualization/hostpools/sessionhosts\"\n    | extend vmResourceId = tolower(tostring(properties.resourceId))\n    | project vmResourceId\n) on $left.vmId == $right.vmResourceId\n| where isempty(vmResourceId)\n| count\n| project Count, Label = \"⚠️ Orphaned\"",
+        "size": 4,
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "crossComponentResources": [
+          "{Subscriptions}"
+        ],
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Label",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "Count",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            },
+            "numberFormat": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "maximumFractionDigits": 0
+              }
+            }
+          },
+          "showBorder": true,
+          "size": "auto"
+        }
+      },
+      "name": "tile-orphaned"
+    },
+    {
+      "type": 3,
+      "customWidth": "25",
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "desktopvirtualizationresources\n| where type =~ \"microsoft.desktopvirtualization/hostpools/sessionhosts\"\n| extend status = tostring(properties.status)\n| where status in~ (\"Unavailable\", \"NeedsAssistance\")\n| count\n| project Count, Label = \"🟠 Unhealthy\"",
+        "size": 4,
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "crossComponentResources": [
+          "{Subscriptions}"
+        ],
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Label",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "Count",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "orange"
+            },
+            "numberFormat": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "maximumFractionDigits": 0
+              }
+            }
+          },
+          "showBorder": true,
+          "size": "auto"
+        }
+      },
+      "name": "tile-unhealthy"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## Orphaned VMs\nThese VMs match AVD naming/tagging criteria but are **not registered** as session hosts in any host pool. They may be costing you money without serving any AVD workload. VMs with `updater` in their name are excluded here — see the **Master Images** section below.\n\n> **Recommended actions:** Verify each VM — if it's no longer needed, deallocate and delete it. If it should be registered, re-register it to the appropriate host pool."
+      },
+      "name": "orphaned-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "resources\n| where type =~ \"microsoft.compute/virtualmachines\"\n| where tolower(name) contains tolower(\"{NameFilter}\")\n    or tolower(resourceGroup) contains tolower(\"{NameFilter}\")\n    or tolower(tostring(tags)) contains tolower(\"{NameFilter}\")\n| where not(tolower(name) contains \"updater\")\n| project vmId = tolower(id), vmName = name, resourceGroup, subscriptionId, location,\n    vmSize = tostring(properties.hardwareProfile.vmSize),\n    osType = tostring(properties.storageProfile.osDisk.osType),\n    tags,\n    id\n| join kind=leftouter (\n    desktopvirtualizationresources\n    | where type =~ \"microsoft.desktopvirtualization/hostpools/sessionhosts\"\n    | extend vmResourceId = tolower(tostring(properties.resourceId))\n    | project vmResourceId\n) on $left.vmId == $right.vmResourceId\n| where isempty(vmResourceId)\n| project-away vmId, vmResourceId\n| sort by resourceGroup asc, vmName asc",
+        "size": 0,
+        "showExportToExcel": true,
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "crossComponentResources": [
+          "{Subscriptions}"
+        ],
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "id",
+              "formatter": 13,
+              "formatOptions": {
+                "linkTarget": "Resource",
+                "showIcon": true
+              }
+            },
+            {
+              "columnMatch": "tags",
+              "formatter": 7,
+              "formatOptions": {
+                "linkTarget": "CellDetails",
+                "linkIsContextBlade": true
+              }
+            }
+          ],
+          "labelSettings": [
+            { "columnId": "vmName", "label": "VM Name" },
+            { "columnId": "resourceGroup", "label": "Resource Group" },
+            { "columnId": "subscriptionId", "label": "Subscription" },
+            { "columnId": "location", "label": "Location" },
+            { "columnId": "vmSize", "label": "VM Size" },
+            { "columnId": "osType", "label": "OS" },
+            { "columnId": "tags", "label": "Tags" },
+            { "columnId": "id", "label": "Resource" }
+          ]
+        }
+      },
+      "name": "orphaned-vms"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## Registered Session Hosts\nAll session hosts currently registered to host pools. Use this to verify healthy registrations and spot hosts in a bad state."
+      },
+      "name": "registered-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "desktopvirtualizationresources\n| where type =~ \"microsoft.desktopvirtualization/hostpools/sessionhosts\"\n| extend idParts = split(id, '/')\n| extend hostPoolName = tostring(idParts[8])\n| extend rgName = tostring(idParts[4])\n| extend status = tostring(properties.status)\n| extend updateState = tostring(properties.updateState)\n| extend lastHeartbeat = todatetime(properties.lastHeartbeat)\n| extend assignedUser = tostring(properties.assignedUser)\n| extend vmResourceId = tolower(tostring(properties.resourceId))\n| project hostPoolName, sessionHost = name, status, updateState, lastHeartbeat,\n    assignedUser, rgName, vmResourceId\n| sort by status asc, hostPoolName asc, sessionHost asc",
+        "size": 0,
+        "showExportToExcel": true,
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "crossComponentResources": [
+          "{Subscriptions}"
+        ],
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "status",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Available",
+                    "representation": "success",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Unavailable",
+                    "representation": "2",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "NeedsAssistance",
+                    "representation": "warning",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "unknown",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            }
+          ],
+          "labelSettings": [
+            { "columnId": "hostPoolName", "label": "Host Pool" },
+            { "columnId": "sessionHost", "label": "Session Host" },
+            { "columnId": "status", "label": "Status" },
+            { "columnId": "updateState", "label": "Update State" },
+            { "columnId": "lastHeartbeat", "label": "Last Heartbeat" },
+            { "columnId": "assignedUser", "label": "Assigned User" },
+            { "columnId": "rgName", "label": "Resource Group" },
+            { "columnId": "vmResourceId", "label": "VM Resource ID" }
+          ]
+        }
+      },
+      "name": "registered-hosts"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## Unhealthy Registered Hosts\nSession hosts that **are** registered and explicitly in problematic states: **Unavailable** or **NeedsAssistance**. This avoids flagging intentionally **Shutdown** hosts (for autoscaling/maintenance)."
+      },
+      "name": "unhealthy-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "desktopvirtualizationresources\n| where type =~ \"microsoft.desktopvirtualization/hostpools/sessionhosts\"\n| extend status = tostring(properties.status)\n| where status in~ (\"Unavailable\", \"NeedsAssistance\")\n| extend idParts = split(id, '/')\n| extend hostPoolName = tostring(idParts[8])\n| extend rgName = tostring(idParts[4])\n| extend lastHeartbeat = todatetime(properties.lastHeartbeat)\n| extend updateState = tostring(properties.updateState)\n| extend assignedUser = tostring(properties.assignedUser)\n| extend vmResourceId = tolower(tostring(properties.resourceId))\n| project hostPoolName, sessionHost = name, status, updateState, lastHeartbeat,\n    assignedUser, rgName, vmResourceId\n| sort by lastHeartbeat asc",
+        "size": 0,
+        "showExportToExcel": true,
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "crossComponentResources": [
+          "{Subscriptions}"
+        ],
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "status",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Unavailable",
+                    "representation": "2",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "NeedsAssistance",
+                    "representation": "warning",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "unknown",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            }
+          ],
+          "labelSettings": [
+            { "columnId": "hostPoolName", "label": "Host Pool" },
+            { "columnId": "sessionHost", "label": "Session Host" },
+            { "columnId": "status", "label": "Status" },
+            { "columnId": "updateState", "label": "Update State" },
+            { "columnId": "lastHeartbeat", "label": "Last Heartbeat" },
+            { "columnId": "assignedUser", "label": "Assigned User" },
+            { "columnId": "rgName", "label": "Resource Group" },
+            { "columnId": "vmResourceId", "label": "VM Resource ID" }
+          ]
+        }
+      },
+      "name": "unhealthy-hosts"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## Ghost Registrations\nSession hosts registered in the AVD control plane where the underlying VM **no longer exists**. This is the reverse orphan — a stale registration pointing at a deleted VM. These should be removed from the host pool."
+      },
+      "name": "ghost-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "desktopvirtualizationresources\n| where type =~ \"microsoft.desktopvirtualization/hostpools/sessionhosts\"\n| extend vmResourceId = tolower(tostring(properties.resourceId))\n| extend idParts = split(id, '/')\n| extend hostPoolName = tostring(idParts[8])\n| extend status = tostring(properties.status)\n| extend lastHeartbeat = todatetime(properties.lastHeartbeat)\n| project vmResourceId, hostPoolName, sessionHost = name, status, lastHeartbeat, shId = id\n| join kind=leftouter (\n    resources\n    | where type =~ \"microsoft.compute/virtualmachines\"\n    | project vmId = tolower(id)\n) on $left.vmResourceId == $right.vmId\n| where isempty(vmId)\n| project-away vmResourceId, vmId\n| sort by hostPoolName asc, sessionHost asc",
+        "size": 0,
+        "showExportToExcel": true,
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "crossComponentResources": [
+          "{Subscriptions}"
+        ],
+        "visualization": "table",
+        "gridSettings": {
+          "labelSettings": [
+            { "columnId": "hostPoolName", "label": "Host Pool" },
+            { "columnId": "sessionHost", "label": "Session Host" },
+            { "columnId": "status", "label": "Status" },
+            { "columnId": "lastHeartbeat", "label": "Last Heartbeat" },
+            { "columnId": "shId", "label": "Session Host Resource ID" }
+          ]
+        }
+      },
+      "name": "ghost-registrations"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## Master Images (Updater VMs)\nVMs with `updater` in their name that match AVD criteria. These are typically master/gold images used for host pool updates and should **not** be left running or missing auto-shutdown schedules.\n\nRows are flagged if the VM is **powered on** or has **no auto-shutdown schedule** configured."
+      },
+      "name": "updater-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "resources\n| where type =~ \"microsoft.compute/virtualmachines\"\n| where tolower(name) contains tolower(\"{NameFilter}\")\n    or tolower(resourceGroup) contains tolower(\"{NameFilter}\")\n    or tolower(tostring(tags)) contains tolower(\"{NameFilter}\")\n| where tolower(name) contains \"updater\"\n| extend powerState = tostring(properties.extended.instanceView.powerState.displayStatus)\n| extend vmSchedName = tolower(strcat(\"shutdown-computevm-\", name))\n| project vmSchedName, vmName = name, resourceGroup, subscriptionId, location,\n    vmSize = tostring(properties.hardwareProfile.vmSize),\n    powerState, tags, id\n| join kind=leftouter (\n    resources\n    | where type =~ \"microsoft.devtestlab/schedules\"\n    | extend schedStatus = tostring(properties.status)\n    | project schedName = tolower(name), schedStatus\n) on $left.vmSchedName == $right.schedName\n| extend isRunning = (powerState contains \"running\")\n| extend autoShutdown = iff(isempty(schedStatus), \"Not Configured\", schedStatus)\n| extend needsAttention = iff(isRunning,\n    iff(isempty(schedStatus), \"Running + No Auto-Shutdown\", \"Running\"),\n    iff(isempty(schedStatus), \"No Auto-Shutdown\",\n        iff(schedStatus =~ \"Enabled\", \"\", \"Auto-Shutdown Disabled\")))\n| project vmName, resourceGroup, needsAttention, powerState, autoShutdown, subscriptionId, location, vmSize, tags, id\n| sort by needsAttention desc, vmName asc",
+        "size": 0,
+        "showExportToExcel": true,
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "crossComponentResources": [
+          "{Subscriptions}"
+        ],
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "powerState",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "running",
+                    "representation": "warning",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "deallocated",
+                    "representation": "success",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "stopped",
+                    "representation": "stopped",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "unknown",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "autoShutdown",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "startsWith",
+                    "thresholdValue": "Enabled",
+                    "representation": "success",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Not Configured",
+                    "representation": "critical",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "startsWith",
+                    "thresholdValue": "Disabled",
+                    "representation": "warning",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "unknown",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "needsAttention",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Running + No Auto-Shutdown",
+                    "representation": "4",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Running",
+                    "representation": "warning",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "No Auto-Shutdown",
+                    "representation": "critical",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Auto-Shutdown Disabled",
+                    "representation": "warning",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "",
+                    "representation": "success",
+                    "text": "OK"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "unknown",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "id",
+              "formatter": 13,
+              "formatOptions": {
+                "linkTarget": "Resource",
+                "showIcon": true
+              }
+            },
+            {
+              "columnMatch": "tags",
+              "formatter": 7,
+              "formatOptions": {
+                "linkTarget": "CellDetails",
+                "linkIsContextBlade": true
+              }
+            }
+          ],
+          "labelSettings": [
+            { "columnId": "vmName", "label": "VM Name" },
+            { "columnId": "resourceGroup", "label": "Resource Group" },
+            { "columnId": "needsAttention", "label": "Needs Attention" },
+            { "columnId": "powerState", "label": "Power State" },
+            { "columnId": "autoShutdown", "label": "Auto-Shutdown" },
+            { "columnId": "subscriptionId", "label": "Subscription" },
+            { "columnId": "location", "label": "Location" },
+            { "columnId": "vmSize", "label": "VM Size" },
+            { "columnId": "tags", "label": "Tags" },
+            { "columnId": "id", "label": "Resource" }
+          ]
+        }
+      },
+      "name": "updater-vms"
+    }
+  ],
+  "fallbackResourceIds": [
+    "azure monitor"
+  ]
+}

@@ -50,8 +50,11 @@ $allSubscriptions = @(
     "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy"
 )
 
-$outputDir = "C:\path\to\FinOps\[customer-name]\metrics"
+$resourceDataDir = "C:\path\to\FinOps\[customer-name]\resource-data"
+$outputDir       = "C:\path\to\FinOps\[customer-name]\metrics"
 ```
+
+`$resourceDataDir` is where Phase 2 PS1 scripts write their CSVs. `$outputDir` is where Phase 3 metrics scripts write theirs. Both must be set before running any PS1 script.
 
 Leave everything else blank for now — the other sections (`$sqlPools`, `$appServicePlans`, etc.) get filled in as you go.
 
@@ -101,9 +104,9 @@ The AI will tell you exactly which scripts to run. There are two types:
 **PowerShell scripts** (`.ps1` files) — run these in a terminal:
 
 1. Make sure `config.ps1` is filled in for the relevant section
-2. Open a PowerShell terminal in the `scripts/` folder
-3. Run: `.\phase2-inventory\[script-name].ps1` (or `.\phase3-utilisation\[script-name].ps1`)
-4. Output CSVs are written to the `$outputDir` you set in `config.ps1`
+2. Ensure `az login` has been completed
+3. Run the script using its full path: `& "C:\path\to\FinOps\scripts\phase2-inventory\[script-name].ps1"`
+4. Phase 2 scripts write CSVs to `$resourceDataDir`; Phase 3 scripts write to `$outputDir` — no manual copying needed
 
 ---
 

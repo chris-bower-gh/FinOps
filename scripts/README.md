@@ -73,6 +73,8 @@ Before running any PowerShell script:
 | `16-backup-retention.ps1` | Backup Vaults — retention periods per policy (daily, weekly, monthly, yearly) |
 | `17-bastion.kql` | Azure Bastion — SKU tier (Developer/Basic/Standard) |
 | `18-synapse.kql` | Synapse Analytics — workspaces, SQL pools, and Spark pools with auto-pause configuration |
+| `19-avd-hostpools.kql` | AVD Host Pools — MaxSessionLimit, load balancer type (BreadthFirst/DepthFirst), pool type |
+| `19-avd-orphaned-hosts.kql` | AVD VMs matching AVD naming/RG criteria that are not registered to any host pool — identifies orphaned session hosts still incurring disk costs |
 
 ### phase3-utilisation/
 
@@ -81,9 +83,12 @@ Before running any PowerShell script:
 | `01-sql-pool-metrics.ps1` | SQL Elastic Pools — 30-day hourly CPU/DTU % and storage % — **initial screen** |
 | `01-sql-pool-metrics-deepdive.ps1` | SQL Elastic Pools — 7-day 1-minute DTU/CPU %, percentiles, spike detection — **run for all flagged pools** |
 | `02-vm-metrics.ps1` | Virtual Machines — 30-day CPU % and available memory |
+| `03-managed-disk-metrics.ps1` | Managed Disks — 30-day max/avg IOPS and throughput for all attached Premium SSD disks; outputs FitsStdSSD flag for tier-down assessment |
 | `04-app-service-metrics.ps1` | App Service Plans — 30-day hourly CPU % and memory % — **initial screen** |
 | `04-app-service-metrics-deepdive.ps1` | App Service Plans — 7-day 1-minute CPU % and memory %, absolute GB, headroom check — **run for all flagged plans** |
 | `05-servicebus-metrics.ps1` | Service Bus — 30-day IncomingMessages, OutgoingMessages, ActiveMessages totals |
 | `12-data-factory-pipeline-runs.ps1` | Data Factory — pipeline run counts, failure rate, and last status for the last 30 days |
-| `log-analytics-ingestion-by-table.kql` | Log Analytics — billable ingestion in GB by table for the last 30 days (run per workspace) |
+| `log-analytics-ingestion.ps1` | Log Analytics — billable ingestion in GB by table for the last 30 days across all workspaces (auto-discovers via Resource Graph) |
+| `log-analytics-ingestion-by-table.kql` | Log Analytics — same query as above for manual runs in the portal |
 | `virtual-wan-hub-traffic.ps1` | Virtual WAN Hub — total data processed over 30 days to check if a hub is routing traffic |
+| `19-avd-utilisation.kql` | AVD Host Pool utilisation — active sessions vs capacity over time; signals BreadthFirst/DepthFirst impact. Run per workspace in Log Analytics after populating session limits from `19-avd-hostpools.kql` |

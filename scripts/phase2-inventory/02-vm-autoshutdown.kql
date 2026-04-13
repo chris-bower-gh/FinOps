@@ -4,7 +4,7 @@ Resources
 | where type == "microsoft.devtestlab/schedules"
 | where name startswith "shutdown-computevm"
 | extend targetVm = tostring(properties.targetResourceId)
-| extend shutdownTime = tostring(properties.dailyRecurrence.time)
+| extend shutdownTime = tostring(properties.dailyRecurrence['time'])
 | extend status = tostring(properties.status)
 | extend timezone = tostring(properties.timeZoneId)
 | project name, resourceGroup, subscriptionId, shutdownTime, timezone, status, targetVm

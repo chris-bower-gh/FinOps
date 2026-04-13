@@ -9,9 +9,13 @@
 #   - P0v3 is a burstable tier (0.25 vCPU baseline) — CPU % on P0v3 does not translate
 #     directly to CPU % on B1 (1 full vCPU). The script notes this where Sku = P0v3.
 #
+# NOTE: Azure Monitor retains 1-minute granularity for only ~3 days for App Service metrics.
+#       This script uses PT5M (5-minute) which is retained for 93 days and still sufficient
+#       to detect short-duration spikes.
+#
 # Output:
 #   - Console: P95/P99/Peak %, peak memory in GB, headroom on current and candidate SKUs
-#   - CSV:     Full 7-day 1-minute time series per plan per metric
+#   - CSV:     Full 7-day 5-minute time series per plan per metric
 
 . "$PSScriptRoot\..\config.ps1"
 
@@ -20,17 +24,18 @@ $start = (Get-Date).AddDays(-7).ToString("yyyy-MM-ddTHH:mm:ssZ")
 
 # Memory ceilings in GB by SKU name — used to convert % to absolute GB
 $memCeilings = @{
-    'B1'  = 1.75; 'B2'  = 3.5;  'B3'  = 7.0
-    'S1'  = 1.75; 'S2'  = 3.5;  'S3'  = 7.0
-    'P0v3'= 4.0;  'P1v3'= 8.0;  'P2v3'= 16.0; 'P3v3' = 32.0
-    'WS1' = 3.5;  'WS2' = 7.0;  'WS3' = 14.0
+    'B1'   = 1.75; 'B2'   = 3.5;  'B3'   = 7.0
+    'S1'   = 1.75; 'S2'   = 3.5;  'S3'   = 7.0
+    'P0v3' = 4.0;  'P1v3' = 8.0;  'P2v3' = 16.0; 'P3v3'  = 32.0
+    'P1mv3'= 16.0; 'P2mv3'= 32.0; 'P3mv3'= 64.0
+    'WS1'  = 3.5;  'WS2'  = 7.0;  'WS3'  = 14.0
 }
 
 # Candidate SKU ceilings — used to show available headroom if plan is downgraded
 $candidateCeilings = @{
-    'B1' = 1.75; 'B2' = 3.5; 'B3' = 7.0
-    'S1' = 1.75; 'S2' = 3.5; 'S3' = 7.0
-    'P1v3' = 8.0; 'P2v3' = 16.0
+    'B1'   = 1.75; 'B2'   = 3.5;  'B3'  = 7.0
+    'S1'   = 1.75; 'S2'   = 3.5;  'S3'  = 7.0
+    'P1v3' = 8.0;  'P2v3' = 16.0; 'P1mv3' = 16.0; 'P2mv3' = 32.0
 }
 
 foreach ($p in $appServicePlansDeepDive) {
@@ -43,7 +48,7 @@ foreach ($p in $appServicePlansDeepDive) {
         $raw = az monitor metrics list `
             --resource "/subscriptions/$($p.Sub)/resourceGroups/$($p.RG)/providers/Microsoft.Web/serverfarms/$($p.Name)" `
             --metric $metric --start-time $start --end-time $end `
-            --interval PT1M --aggregation Maximum --output json 2>$null | ConvertFrom-Json
+            --interval PT5M --aggregation Maximum --output json --only-show-errors | ConvertFrom-Json
 
         if (-not ($raw -and $raw.value -and $raw.value[0].timeseries)) {
             Write-Warning "  No data for $metric"

@@ -1,21 +1,23 @@
 # Backup Vaults — retention periods per policy
-# CONFIGURE: Set vaults array below
 # Identifies excessively long retention periods driving storage costs
+# Output: 16-backup-retention.csv in movera/resource-data/
 
 . "$PSScriptRoot\..\config.ps1"
+
+$outputPath = Join-Path $resourceDataDir "16-backup-retention.csv"
 
 $vaults = $backupVaults
 
 $results = foreach ($v in $vaults) {
-    az account set --subscription $v.sub | Out-Null
+    az account set --subscription $v.Sub | Out-Null
     $policies = az backup policy list `
-        --vault-name $v.name `
-        --resource-group $v.rg `
-        --output json 2>$null | ConvertFrom-Json
+        --vault-name $v.Name `
+        --resource-group $v.RG `
+        --output json --only-show-errors | ConvertFrom-Json
     foreach ($p in $policies) {
         $retain = $p.properties.retentionPolicy
         [PSCustomObject]@{
-            Vault           = $v.name
+            Vault           = $v.Name
             Policy          = $p.name
             DailyRetainDays = $retain.dailySchedule.retentionDuration.count
             WeeklyRetainWks = $retain.weeklySchedule.retentionDuration.count
@@ -25,4 +27,6 @@ $results = foreach ($v in $vaults) {
     }
 }
 
+$results | Export-Csv $outputPath -NoTypeInformation
 $results | Format-Table -AutoSize
+Write-Host "Saved to $outputPath"

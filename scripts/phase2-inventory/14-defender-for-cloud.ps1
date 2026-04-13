@@ -1,15 +1,16 @@
 # Defender for Cloud — enabled plans per subscription
-# CONFIGURE: Set subscriptions array below
 # Identifies Standard-tier plans that are billing; excludes deprecated and free plans
-# Output: defender-plans.csv in current directory
+# Output: 14-defender-for-cloud.csv in movera/resource-data/
 
 . "$PSScriptRoot\..\config.ps1"
+
+$outputPath = Join-Path $resourceDataDir "14-defender-for-cloud.csv"
 
 $subscriptions = $allSubscriptions
 
 $results = foreach ($sub in $subscriptions) {
     az account set --subscription $sub | Out-Null
-    $response = az security pricing list --output json 2>$null | ConvertFrom-Json
+    $response = az security pricing list --output json --only-show-errors | ConvertFrom-Json
     $plans = if ($response.value) { $response.value } else { $response }
     foreach ($p in $plans) {
         if ($p.pricingTier -eq "Standard" -and -not $p.deprecated) {
@@ -22,5 +23,6 @@ $results = foreach ($sub in $subscriptions) {
     }
 }
 
-$results | Export-Csv "defender-plans.csv" -NoTypeInformation
+$results | Export-Csv $outputPath -NoTypeInformation
 $results | Format-Table -AutoSize
+Write-Host "Saved to $outputPath"

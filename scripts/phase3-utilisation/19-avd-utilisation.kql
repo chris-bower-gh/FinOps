@@ -1,0 +1,53 @@
+// AVD Host Pool Utilisation — active sessions vs capacity over time
+// Run in: Log Analytics (scope: Movera AVD workspace)
+// Prerequisite: run 19-avd-hostpools.kql (Resource Graph) first to get MaxSessionLimit per pool,
+//               then populate the sessionLimits datatable below.
+//
+// Key signals:
+//   - Consistently low UtilizationPercent (<40%) → session hosts may be over-provisioned
+//   - ActiveHosts varying over time → scaling plan is firing correctly
+//   - LoadBalancerType (from 19-avd-hostpools.kql): depth-first maximises utilisation per host;
+//     breadth-first spreads load — note if breadth-first and utilisation is low
+
+let sessionLimits = datatable(HostPoolName: string, SessionLimit: int) [
+    // Personal pool omitted — session limit 999999 is not meaningful for utilisation
+    "onp-vdpool-w11-developer-prod-northeurope-001",  8,
+    "onp-vdpool-w11-developer-prod-uksouth-001",      5,
+    "onp-vdpool-w11-developer-test-uksouth-001",      10,
+    "onp-vdpool-w11-std-m365x32-prod-northeurope-001", 8,
+    "onp-vdpool-w11-std-m365x32-prod-uksouth-001",    10,
+    "onp-vdpool-w11-std-m365x32-test-uksouth-001",    10,
+    "onp-vdpool-w11-std-m365x64-prod-northeurope-001", 8,
+    "onp-vdpool-w11-std-m365x64-prod-uksouth-001",    8,
+    "onp-vdpool-w11-std-m365x64-test-uksouth-001",    10
+];
+let startTime = ago(30d);
+let endTime = now();
+let interval = 1m;
+let actualData = WVDAgentHealthStatus
+    | where TimeGenerated >= startTime
+    | where Status == "Available"
+    | extend HostPoolName = tostring(split(_ResourceId, "/")[8])
+    | extend ActiveSessionsNum = toint(ActiveSessions)
+    | extend InactiveSessionsNum = toint(InactiveSessions)
+    | summarize arg_max(TimeGenerated, *) by bin(TimeGenerated, interval), SessionHostName, HostPoolName
+    | summarize
+        TotalActiveSessions = sum(ActiveSessionsNum),
+        TotalInactiveSessions = sum(InactiveSessionsNum),
+        ActiveHosts = dcount(SessionHostName)
+        by TimeGenerated, HostPoolName;
+let timeGrid = range TimeGenerated from bin(startTime, interval) to bin(endTime, interval) step interval;
+let hostPools = actualData | distinct HostPoolName;
+timeGrid
+| extend dummy = 1
+| join kind=inner (hostPools | extend dummy = 1) on dummy
+| project-away dummy, dummy1
+| join kind=leftouter actualData on TimeGenerated, HostPoolName
+| extend TotalActiveSessions = coalesce(TotalActiveSessions, 0)
+| extend TotalInactiveSessions = coalesce(TotalInactiveSessions, 0)
+| extend ActiveHosts = coalesce(ActiveHosts, 0)
+| join kind=leftouter sessionLimits on HostPoolName
+| extend Capacity = ActiveHosts * SessionLimit
+| extend UtilizationPercent = iff(Capacity > 0, round((TotalActiveSessions * 100.0) / Capacity, 2), 0.0)
+| project TimeGenerated, HostPoolName, TotalActiveSessions, TotalInactiveSessions, Capacity, UtilizationPercent, ActiveHosts
+| order by TimeGenerated desc
