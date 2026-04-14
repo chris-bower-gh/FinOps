@@ -10,6 +10,17 @@ Sources: Microsoft Learn documentation, Azure Well-Architected Framework, offici
 
 ## APP SERVICE PLANS, WEB APPS & FUNCTION APPS
 
+There are several distinct App Service populations to assess separately. Do not limit analysis to the plans that appear largest in the cost export.
+
+| Population | How to identify | What to look for |
+|---|---|---|
+| **Premium/Standard plans with low utilisation** | Phase 3 CPU and memory metrics | Downgrade to lower SKU or Basic tier |
+| **Plans with zero apps** | `phase2-inventory/04-app-service-plans.kql` — app count = 0 | Pure waste — plan charges at full rate with no workload |
+| **Plans with stopped apps only** | All apps on plan in `Stopped` state | Plan still charges; confirm apps are not needed |
+| **Dev/test plans at production tier** | Premium or Standard tier in a non-prod subscription | Downgrade to Basic; dev/test pricing available via Visual Studio subscriptions |
+| **Function Apps on Elastic Premium (EP)** | `kind == 'functionapp'` on EP1/EP2/EP3 plan | EP charges 24/7 for minimum 1 warm instance; consider Flex Consumption if VNet not required |
+| **Logic Apps Standard on WS1+** | `WorkflowStandard` plan type | WS1 is a flat ~£175/month regardless of executions — only cost-effective at high volumes |
+
 ### App Service Plans — Tier Capabilities
 
 Before recommending a downgrade, confirm which features the plan actually uses. The table below shows what each tier supports:
@@ -99,6 +110,17 @@ az graph query -q "resources | where subscriptionId in ($subs) | where type == '
 ---
 
 ## AZURE SQL
+
+There are several distinct SQL resource populations. Each bills differently and has different optimisation levers.
+
+| Population | How to identify | What to look for |
+|---|---|---|
+| **Elastic pools at low DTU/vCore utilisation** | Phase 3 SQL metrics | Reduce DTU/vCore count; Standard → Basic if prerequisites met |
+| **Elastic pools with zero utilisation and zero storage** | Metrics = 0 across 30 days | Pool may be empty — confirm and delete |
+| **Single databases outside a pool** | `type == 'microsoft.sql/servers/databases'`, no pool parent | Could they be added to an existing pool? Serverless with auto-pause for intermittent workloads? |
+| **SQL VMs (IaaS)** | `type == 'microsoft.sqlvirtualmachine/sqlvirtualmachines'` | AHB applied? Oversized? Running 24/7 in non-prod? |
+| **Dev/test databases always running** | Non-prod subscription, no auto-pause | Serverless auto-pause or scheduled shutdown |
+| **Geo-replicated databases** | Secondary replica in another region | Secondary replica bills at full compute cost — confirm active failover requirement |
 
 ### Elastic Pools — Rightsizing
 
@@ -219,6 +241,17 @@ Invoke-RestMethod -Uri "https://management.azure.com/subscriptions/$subId/resour
 
 ## LOG ANALYTICS WORKSPACES
 
+Log Analytics costs are easy to under-assess because the charge appears under a single workspace but the root causes are spread across many resources and data sources. Assess each population below independently.
+
+| Population | How to identify | What to look for |
+|---|---|---|
+| **Primary workspaces (operational)** | Large ingestion volume in cost export | Commitment tier vs PAYG; ingestion by table (top tables driving cost) |
+| **Application Insights instances** | `phase2-inventory/10-app-insights.kql` | Classic (non-workspace) instances — migrate to workspace-based; instances sending to DefaultWorkspace (hidden cost, no commitment tier benefit) |
+| **Security/Sentinel workspace** | Sentinel enabled on workspace | ALL data in a Sentinel workspace is subject to Sentinel pricing uplift — operational logs should not be in a Sentinel workspace unless volume justifies it |
+| **Duplicate data sources** | Multiple diagnostic settings per resource, or both MMA and AMA agents running | Same data ingested twice — common after agent migrations |
+| **AVD / Windows performance counters** | `Perf` table dominates ingestion | DCR collecting unused counters at high frequency; counters not referenced in any alert or workbook |
+| **Firewall / NSG diagnostic logs** | `AzureDiagnostics` from Firewall resources | Firewall logs at verbose level can be very high volume; Basic Logs tier may be appropriate |
+
 ### Pricing Tiers
 
 | Tier | When to use | Saving |
@@ -334,6 +367,15 @@ For VMs with low average CPU but occasional spikes (e.g. background processing, 
 
 ## MANAGED DISKS
 
+There are four distinct disk populations to assess in every engagement. Each is a separate finding — do not collapse them.
+
+| Population | How to identify | Action |
+|---|---|---|
+| **Unattached disks** | `diskState == 'Unattached'` | Pure waste — delete or snapshot and delete |
+| **Attached VM disks (over-provisioned tier)** | `diskState == 'Attached'`, SKU = `Premium_LRS` or `Premium_ZRS` | Tier-down to Standard SSD where IOPS/throughput metrics permit — staged approach |
+| **ASR replica disks** | Name contains `ASRReplica` or resource group contains `-asr` | Replica tier does not need to match source — Standard SSD almost always appropriate |
+| **Orphaned snapshots** | `microsoft.compute/snapshots` where `sourceResourceId` no longer exists | Pure waste — delete |
+
 ### Unattached Disks
 
 ```powershell
@@ -349,11 +391,30 @@ Pure waste — no utilisation check needed. Charge is based on provisioned size,
 | Standard SSD E70 (1TB) | ~£60/month |
 | Standard HDD S70 (1TB) | ~£30/month |
 
-### Disk Rightsizing
+### VM Disk Rightsizing (Attached Disks)
 
-- **Premium SSD → Standard SSD**: For non-critical data, development disks, or backups. Significant saving.
+- **Premium SSD → Standard SSD**: Valid for non-critical data disks or OS disks on tolerant workloads. Requires IOPS and throughput metrics — see Phase 3 `03-managed-disk-metrics.ps1`.
+- **Staged approach is required**: Do not recommend bulk tier-down. Phase 1: change 1–2 data disks, monitor for 5–7 days. Phase 2: remaining data disks in batches. Phase 3: OS disks only after SLA and zone membership confirmed.
+- **OS disk SLA caveat**: Downgrading an OS disk on a single-instance VM (no Availability Zone, no Availability Set) reduces the SLA from 99.9% to 99.5%. Confirm zone/set membership before including OS disks in the recommendation.
 - **Provisioned size vs used size**: Disk cost is based on provisioned tier, not used space. A 1TB disk with 10GB used still costs the same as a full 1TB disk.
-- **Disk snapshots**: Charged per GB. Old snapshots from deleted VMs are pure waste.
+
+### ASR Replica Disks
+
+ASR replica disks are a separate and frequently overlooked saving opportunity.
+
+- **How they work**: When Azure Site Recovery replicates a VM, it creates managed disks in the target region to hold the replica data. These disks are in `ActiveSAS` state and receive replication writes, but they do not serve application IOPS.
+- **Key insight**: Because replica disks are not serving workloads, their tier does not need to match the source disk. Even if the source disk is Premium SSD (required for application performance), the replica can be Standard SSD without affecting replication fidelity, RPO, or RTO.
+- **Exception**: If a post-failover runbook or SLA requires the recovered VM to operate at full performance immediately without manual intervention, the replica disk tier matters — flag this as a cavaet rather than a blocker, and recommend checking any failover runbooks.
+- **Discovery query**:
+
+```powershell
+# Find all ASR replica disks (Premium_LRS candidates for Standard SSD)
+az graph query -q "resources | where subscriptionId in ($subs) | where type == 'microsoft.compute/disks' | where name contains 'ASRReplica' or resourceGroup contains '-asr' | project name, resourceGroup, subscriptionId, diskSizeGB=properties.diskSizeGB, sku_name=sku.name, diskState=properties.diskState" --first 1000 --output json | ConvertFrom-Json | Select-Object -ExpandProperty data
+```
+
+### Orphaned Disk Snapshots
+
+- **Disk snapshots**: Charged per GB of provisioned snapshot size. Old snapshots from deleted VMs are pure waste.
 
 ```powershell
 # Find orphaned disk snapshots (associated VM no longer exists)
@@ -363,6 +424,21 @@ az graph query -q "resources | where subscriptionId in ($subs) | where type == '
 ---
 
 ## NETWORKING
+
+Networking costs are distributed across many resource types and are easy to miss because individual items are often small. The aggregated total can be significant. Assess each population independently rather than treating "networking" as a single line item.
+
+| Population | How to identify | What to look for |
+|---|---|---|
+| **Azure Bastion** | `phase2-inventory/17-bastion.kql` | Standard SKU in dev/test (use Developer — free); multiple Bastions across peered VNets (one Standard can serve all) |
+| **Azure Firewall** | `phase2-inventory/08-azure-firewall.kql` | Premium tier where TLS inspection and IDPS are not in use — downgrade to Standard |
+| **Public IP addresses (unassociated)** | `isnull(properties.ipConfiguration)` in inventory | Standard Static IPs charge even when unassociated (~£3/month each) |
+| **Load Balancers with empty backend pools** | Backend pool membership query | Standard LB charges hourly + per rule regardless of traffic |
+| **Application Gateways with empty backends** | `phase2-inventory/15-app-gateway-backends.kql` | WAF v2 charges per gateway-hour even with no backends; check if gateway can be deallocated |
+| **Orphaned Network Interfaces (NICs)** | `type == 'microsoft.network/networkinterfaces'` where `virtualMachine` is null | NICs detached from VMs — no direct charge but signal of orphaned resources with associated disks or IPs |
+| **DDoS Protection Plans** | `type == 'microsoft.network/ddosprotectionplans'` | ~£2,500+/month regardless of usage — only justified for genuinely high-risk public-facing workloads |
+| **VPN Gateways** | `phase2-inventory` VPN gateway query | Charged hourly regardless of active connections — are all gateways actively used? |
+| **Virtual WAN hubs** | `phase2-inventory/11-virtual-wan.kql` + Phase 3 traffic metrics | Hub charge ~£190/month even with zero traffic — confirm all hubs are routing workloads |
+| **NAT Gateways** | Networking inventory | Charged hourly even with no active traffic — any subnet with no outbound internet requirement should not have one attached |
 
 ### Azure Bastion
 
@@ -477,6 +553,18 @@ az graph query -q "resources | where subscriptionId in ($subs) | where type == '
 
 ## STORAGE ACCOUNTS
 
+Storage account costs are often spread across many accounts created implicitly by other services. Do not limit analysis to the accounts that appear directly in the cost export — many storage costs are billed under the parent service (e.g. Backup, App Service, Data Factory).
+
+| Population | How to identify | What to look for |
+|---|---|---|
+| **Primary data storage accounts** | Large accounts in cost export | GRS → LRS where geo-redundancy not required; Hot → Cool/Archive for infrequently accessed data |
+| **ASR cache storage accounts** | Storage accounts in `-asr` resource groups or named with `asr`/`cache` | Often GRS or Premium by default; can be LRS Standard; also check if Defender for Storage (Classic) is enabled |
+| **FSLogix profile storage** | Large Premium Files accounts in AVD resource groups | Premium Files is expensive — confirm IOPS requirements; ZRS may be over-specified |
+| **App Service backup/log storage** | Storage accounts auto-created with App Service deployments | May persist after app deletion; check if orphaned |
+| **Data Factory staging storage** | Storage accounts referenced in ADF linked services | May be left at Hot tier with no lifecycle policy |
+| **Backup vault storage** | Not a storage account — costs appear under Recovery Services vault | Covered in Backup section, not here |
+| **Defender for Storage (Classic plan)** | Per-subscription Defender policy | Classic plan charges per-transaction — extremely expensive on high-volume accounts (ASR cache, FSLogix, diagnostics) |
+
 ### Access Tiers
 
 | Tier | Storage Cost | Access Cost | Use For |
@@ -525,6 +613,17 @@ foreach ($sub in $subList) {
 
 ## MICROSOFT DEFENDER FOR CLOUD
 
+Defender costs are per-subscription and per-resource-type. The most common mistake is reviewing only the plans that appear in the cost export and missing plans enabled on subscriptions that don't appear to be spending much. Assess all subscriptions, not just production.
+
+| Population | How to identify | What to look for |
+|---|---|---|
+| **Defender for Servers** | `phase2-inventory/14-defender-for-cloud.ps1` — all subscriptions | Plan 2 on dev/test VMs where Plan 1 suffices; Plan 2 enabled on subscriptions with no VMs |
+| **Defender for Storage** | Per-subscription policy output | Classic plan on high-volume storage accounts (ASR cache, FSLogix, backup) — very expensive per transaction |
+| **Defender for SQL** | Per-subscription policy | Enabled on subscriptions with no SQL resources |
+| **Defender for App Service** | Per-subscription policy | Enabled on every subscription including dev/test |
+| **Defender for DNS / Resource Manager** | Per-subscription policy | Flat per-subscription charge — evaluate whether threat detection is needed on each subscription |
+| **Non-production subscriptions** | All subscriptions not in `$prodSubscriptions` | Defender plans commonly applied wholesale across all subscriptions — non-prod may not need the same coverage level |
+
 ### Plan Overview and Cost Guidance
 
 | Plan | Per-unit cost | Commonly unnecessary |
@@ -558,6 +657,16 @@ foreach ($sub in $subList) {
 ---
 
 ## RECOVERY SERVICES VAULTS / BACKUP
+
+Backup costs are driven by four independent levers — vault redundancy, snapshot retention, long-term retention policy, and what is actually being backed up. All four need to be assessed; fixing only one will leave the others unexamined.
+
+| Population | How to identify | What to look for |
+|---|---|---|
+| **Vault redundancy** | `phase2-inventory/16-backup-vaults.kql` — `storageType` field | GRS vaults where cross-region restore is not required — LRS is ~50% cheaper; cannot change after first backup is taken without stopping protection |
+| **Retention policies** | `phase2-inventory/16-backup-retention.ps1` | Weekly/monthly/yearly retention longer than business requirements — each tier accumulates its own set of recovery points |
+| **Backup items that shouldn't be backed up** | Review items list in each vault | ASR cache storage accounts, FSLogix profile disks (backed up via FSLogix Cloud Cache or AVD), temp disks — commonly included by broad backup policies |
+| **Backup items for deleted/decommissioned resources** | Orphaned protected items in vault | VM no longer exists but backup item still retaining data and incurring protected-instance fee |
+| **Instant recovery snapshot retention** | Default is 2 days; check if extended | Each day of instant snapshot retention charges at Premium SSD snapshot pricing for all protected VM disks |
 
 ### Backup Cost Drivers
 

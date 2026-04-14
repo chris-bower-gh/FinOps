@@ -49,6 +49,17 @@ Do not batch write multiple sections. Do not finalise a recommendation without t
 
 These are failure modes that have occurred in real engagements. Follow them without exception.
 
+### 0. Write collaboratively, not directively
+
+The customer is a partner, not a subject. Some of the configurations being reviewed may have been designed or implemented by Synextra. Avoid any phrasing that implies the customer (or we) made a poor decision — instead, frame findings as opportunities that have emerged over time or as configurations that made sense at the time but can now be revisited. Avoid language like "these should be deleted", "this is unnecessary", or "this is wasted spend." Prefer:
+
+- "We would recommend reviewing…"
+- "These could be considered candidates for…"
+- "It may be worth exploring whether…"
+- "Working with the team to confirm…"
+
+This applies across the whole report — findings, recommendations, and supporting evidence alike.
+
 ### 1. Never rely on cost exports alone to find all resources
 
 Cost exports tell you what is spending money. They do not tell you everything that is over-provisioned. Always cross-reference cost exports with a full resource inventory. For App Service Plans specifically: request or run a summary of all plans with their SKU tier — a plan running at B3 with low utilisation may not be obvious from the cost export if it shares cost with other resources in the same subscription.
@@ -121,6 +132,29 @@ The Fabric capacity resource does not surface metrics in the standard Azure Moni
 
 Do not recommend a pause/resume schedule without first confirming via the Capacity Metrics app whether the capacity has overnight or weekend activity (scheduled refreshes, batch pipelines, Spark jobs). An incorrectly timed pause will interrupt scheduled workloads.
 
+### 13. Check for existing reservations before recommending SKU changes
+
+Before recommending a VM resize, App Service Plan SKU change, or any other resource tier change that would move away from a currently reserved SKU, check whether an active reservation covers that resource. Reservations appear in the cost export as `Reservation` meter category rows. If reservations exist:
+
+- Identify which SKU family the reservation covers (the reservation name typically includes the VM size family)
+- Check the reservation term (1-year or 3-year) — a mid-term SKU change may mean the reservation continues billing for the original SKU while the resource now bills at the new SKU, resulting in double-cost
+- Flag this explicitly in the recommendation: "If a reservation is active for this resource, validate the remaining term and consider coordinating the change with a reservation expiry or exchange before proceeding"
+- The Azure portal allows reservation exchanges and early returns under certain conditions — flag this as a step the customer should investigate before actioning
+
+Never omit this check for VM right-sizing or App Service Plan downgrades. The cost export will usually be the only source of truth for reservation status in a CSP engagement.
+
+### 14. Managed disk tier-down must be staged, not wholesale
+
+Changing disks from Premium SSD to Standard SSD is not an action that should be performed in bulk across all candidates at once. The correct approach is:
+
+- **Phase 1:** Change one or two lower-criticality data disks first. Monitor IOPS and throughput in Azure Monitor for 5–7 days after the change. Confirm application behaviour is unaffected.
+- **Phase 2:** If Phase 1 succeeds, proceed with the remaining data disks in batches grouped by workload type or criticality.
+- **Phase 3:** Consider OS disks only after data disks are confirmed stable. OS disk changes require additional SLA review (single-instance VMs lose the 99.9% guarantee without Availability Zone or Availability Set membership).
+
+Present this staged approach in the report rather than a flat "change all X disks." The recommendation should give the customer a framework for doing this safely.
+
+**ASR replica disks are a separate opportunity:** Azure Site Recovery (ASR) replica disks are not actively serving application IOPS — they receive replication traffic only. The replica disk tier does not need to match the source disk tier. If source/production disks are Premium SSD, the corresponding ASR replica disks can almost always be Standard SSD without impacting replication fidelity or failover capability. Check the managed disk inventory for disks with `ASRReplica` in their name or resource groups containing `-asr` — these are candidates for tier-down regardless of what the source disk tier is. Flag this as a separate finding from the main VM disk tier-down.
+
 ### 12. Distinguish confirmed savings from further review items
 
 Some cost categories may be identified in cost exports but not have enough data available to produce a quantified, evidence-based recommendation within the engagement. Do not include unverified figures in the confirmed savings total. Instead, add a **Further Review Items** section at the end of the report listing these categories, their monthly spend, and what would need to be investigated. This keeps the confirmed total defensible.
@@ -138,7 +172,23 @@ At the start of each engagement, confirm:
 5. **Any out-of-scope items** specific to this customer (e.g. specific resource types not to touch, compliance constraints)
 6. **Working directory** — all engagement files live in `FinOps/[customer-folder]/`
 
-Read the handover document (`HANDOVER.md`) if one exists in the customer folder — it contains the current state of the engagement, subscription map, data file inventory, and next steps.
+Check whether `STATE.md` exists in the customer folder.
+
+**If STATE.md exists — read it before doing anything else.** It has three sections:
+
+- **Permanent context** — tenant ID, subscription map, out-of-scope items, customer-specific constraints. This does not change between engagement cycles.
+- **Engagement history** — one entry per completed engagement cycle, recording what was delivered, the confirmed saving, and what Further Review items remain open. Read this to understand what has already been found and what is still outstanding from previous cycles.
+- **Current cycle state** — the active phase, data file inventory, investigation priority list, and next steps. This is the section that drives the current engagement.
+
+Check the history section first — a Further Review item from a previous cycle is the highest-priority lead for the current one.
+
+**If STATE.md does not exist — build context from scratch.** Ask the analyst for:
+
+1. Customer name and Azure tenant ID
+2. Subscription names and IDs
+3. Any known out-of-scope items or constraints
+
+Then proceed with the engagement setup questions below. Create `STATE.md` at the start of the engagement and populate it as context is established — do not wait until the end. Write the permanent context section immediately, and update the current cycle section as each phase completes. By the time the report is delivered, STATE.md should be complete enough that another engineer could pick up the next cycle without needing to ask any of these questions again.
 
 ---
 
@@ -252,35 +302,35 @@ The remaining sections (`$sqlPools`, `$appServicePlans`, etc.) are populated ite
 
 Run these for every engagement, working down the list:
 
-| Script | Where to run | Purpose |
-| --- | --- | --- |
-| `phase2-inventory/04-app-service-plans.kql` | Resource Graph Explorer | All ASPs with SKU, OS, and app count — **run this early; cost exports alone miss resources** |
-| `phase2-inventory/01-sql-elastic-pools.kql` | Resource Graph Explorer | SQL pools with edition, DTU/vCore, storage |
-| `phase2-inventory/01-sql-elastic-pools-server-names.kql` | Resource Graph Explorer | Server names needed to populate `$sqlPools` in config.ps1 |
-| `phase2-inventory/02-virtual-machines.kql` | Resource Graph Explorer | VM sizes and power state |
-| `phase2-inventory/02-vm-autoshutdown.kql` | Resource Graph Explorer | Auto-shutdown schedules (confirms non-prod cost controls) |
-| `phase2-inventory/03-managed-disks.kql` | Resource Graph Explorer | Unattached disks — pure waste, no metrics needed |
-| `phase2-inventory/05-service-bus.kql` | Resource Graph Explorer | Service Bus tier — Premium required for private endpoints; do not recommend downgrade if private endpoints are in use |
-| `phase2-inventory/06-virtual-network.kql` | Resource Graph Explorer | Public IPs, private endpoints, load balancers |
-| `phase2-inventory/07-storage-accounts.kql` | Resource Graph Explorer | Storage SKU and access tier |
-| `phase2-inventory/08-azure-firewall.kql` | Resource Graph Explorer | Firewall tier (Standard vs Premium) |
-| `phase2-inventory/08-azure-firewall-diagnostics.ps1` | Terminal | Diagnostic settings (Resource Graph cannot return these reliably) |
-| `phase2-inventory/09-microsoft-fabric.kql` | Resource Graph Explorer | Fabric capacity SKU and paused/running state |
-| `phase2-inventory/09-fabric-pause-schedule.kql` | Resource Graph Explorer | Whether a pause/resume schedule already exists |
-| `phase2-inventory/10-log-analytics.kql` | Resource Graph Explorer | Workspace SKU, retention, daily cap |
-| `phase2-inventory/10-app-insights.kql` | Resource Graph Explorer | Application Insights instances — flags DefaultWorkspace usage |
-| `phase2-inventory/11-virtual-wan.kql` | Resource Graph Explorer | Virtual WAN hubs and gateways |
-| `phase2-inventory/12-data-factory.kql` | Resource Graph Explorer | Data Factory instances |
-| `phase2-inventory/12-data-factory-ir.ps1` | Terminal | Integration Runtime types — Managed VNET IR = higher cost |
-| `phase2-inventory/13-logic-apps.kql` | Resource Graph Explorer | Logic Apps Standard instances |
-| `phase2-inventory/14-defender-for-cloud.ps1` | Terminal | Enabled Defender plans per subscription |
-| `phase2-inventory/15-app-gateway-frontdoor.kql` | Resource Graph Explorer | Application Gateway SKU and tier |
-| `phase2-inventory/15-app-gateway-backends.kql` | Resource Graph Explorer | Backend pool membership (empty = gateway is idle) |
-| `phase2-inventory/16-backup-vaults.kql` | Resource Graph Explorer | Vault redundancy (GRS vs LRS) |
-| `phase2-inventory/16-backup-retention.ps1` | Terminal | Retention periods per policy |
-| `phase2-inventory/17-bastion.kql` | Resource Graph Explorer | Bastion SKU (Developer = free, Basic/Standard = charged) |
-| `phase2-inventory/18-synapse.kql` | Resource Graph Explorer | Synapse Spark pools and auto-pause configuration |
-| `phase2-inventory/19-avd-orphaned-hosts.kql` | Resource Graph Explorer | AVD VMs not registered to any host pool — incurring compute/disk costs without serving any workload |
+| Script | Where to run | Purpose | What to look for |
+| --- | --- | --- | --- |
+| `phase2-inventory/04-app-service-plans.kql` | Resource Graph Explorer | All ASPs with SKU, OS, and app count — **run this early; cost exports alone miss resources** | Premium/Standard plans with 0 or 1 apps; plans with no slots or autoscale in use (candidates for Basic downgrade) |
+| `phase2-inventory/01-sql-elastic-pools.kql` | Resource Graph Explorer | SQL pools with edition, DTU/vCore, storage | Standard pools with low DTU relative to provisioned capacity; pools in dev/test subscriptions on production tier |
+| `phase2-inventory/01-sql-elastic-pools-server-names.kql` | Resource Graph Explorer | Server names needed to populate `$sqlPools` in config.ps1 | — |
+| `phase2-inventory/02-virtual-machines.kql` | Resource Graph Explorer | VM sizes and power state | VMs in `Stopped` (not deallocated) state — still billing; large SKUs in non-prod; VMs with no auto-shutdown |
+| `phase2-inventory/02-vm-autoshutdown.kql` | Resource Graph Explorer | Auto-shutdown schedules (confirms non-prod cost controls) | Non-prod VMs missing auto-shutdown schedule |
+| `phase2-inventory/03-managed-disks.kql` | Resource Graph Explorer | All managed disks with SKU, size, and state | **Four distinct populations to assess separately:** (1) `Unattached` disks — pure waste; (2) attached `Premium_LRS` disks on VMs — tier-down candidates pending metrics; (3) disks with `ASRReplica` in name or in `-asr` resource groups — replica disks that do not need to match source tier; (4) orphaned snapshots from deleted VMs |
+| `phase2-inventory/05-service-bus.kql` | Resource Graph Explorer | Service Bus tier — Premium required for private endpoints; do not recommend downgrade if private endpoints are in use | Premium namespaces with low message volume and no private endpoints |
+| `phase2-inventory/06-virtual-network.kql` | Resource Graph Explorer | Public IPs, private endpoints, load balancers | Public IPs in `Unassociated` state (no cost but a hygiene signal); load balancers with empty backend pools |
+| `phase2-inventory/07-storage-accounts.kql` | Resource Graph Explorer | Storage SKU and access tier | GRS/GZRS accounts where LRS would suffice; Hot tier accounts with low access frequency |
+| `phase2-inventory/08-azure-firewall.kql` | Resource Graph Explorer | Firewall tier (Standard vs Premium) | Premium Firewall where TLS inspection and IDPS are not in use |
+| `phase2-inventory/08-azure-firewall-diagnostics.ps1` | Terminal | Diagnostic settings (Resource Graph cannot return these reliably) | Diagnostic logs sending to Log Analytics — high-volume firewall logs can be a significant ingestion cost |
+| `phase2-inventory/09-microsoft-fabric.kql` | Resource Graph Explorer | Fabric capacity SKU and paused/running state | F-SKU capacities running 24/7 without a pause/resume schedule |
+| `phase2-inventory/09-fabric-pause-schedule.kql` | Resource Graph Explorer | Whether a pause/resume schedule already exists | Missing schedule on an F-SKU capacity |
+| `phase2-inventory/10-log-analytics.kql` | Resource Graph Explorer | Workspace SKU, retention, daily cap | PAYG workspaces where a Commitment Tier would be cheaper at the current ingestion volume; workspaces with no daily cap |
+| `phase2-inventory/10-app-insights.kql` | Resource Graph Explorer | Application Insights instances — flags DefaultWorkspace usage | Classic (non-workspace-based) App Insights instances; instances sending data to a DefaultWorkspace (hidden ingestion cost) |
+| `phase2-inventory/11-virtual-wan.kql` | Resource Graph Explorer | Virtual WAN hubs and gateways | Hubs with no gateway deployments; hubs with zero or near-zero traffic (check with Phase 3 traffic script) |
+| `phase2-inventory/12-data-factory.kql` | Resource Graph Explorer | Data Factory instances | Factories with Managed VNET Integration Runtimes — minimum 60-min billing per run regardless of duration |
+| `phase2-inventory/12-data-factory-ir.ps1` | Terminal | Integration Runtime types — Managed VNET IR = higher cost | Managed VNET IRs where Self-Hosted or Azure IR would suffice |
+| `phase2-inventory/13-logic-apps.kql` | Resource Graph Explorer | Logic Apps Standard instances | WS1/WS2/WS3 plans with low workflow execution counts — may be cheaper on Consumption |
+| `phase2-inventory/14-defender-for-cloud.ps1` | Terminal | Enabled Defender plans per subscription | Defender plans enabled on non-production subscriptions where the risk profile does not justify the cost |
+| `phase2-inventory/15-app-gateway-frontdoor.kql` | Resource Graph Explorer | Application Gateway SKU and tier | WAF_v2 gateways with empty backend pools — billing even with no traffic |
+| `phase2-inventory/15-app-gateway-backends.kql` | Resource Graph Explorer | Backend pool membership (empty = gateway is idle) | Backend pools with zero members |
+| `phase2-inventory/16-backup-vaults.kql` | Resource Graph Explorer | Vault redundancy (GRS vs LRS) | GRS vaults where cross-region restore is not required — LRS is ~50% cheaper |
+| `phase2-inventory/16-backup-retention.ps1` | Terminal | Retention periods per policy | Retention longer than business requirements — especially monthly/yearly tiers which accumulate large volumes of historical backups |
+| `phase2-inventory/17-bastion.kql` | Resource Graph Explorer | Bastion SKU (Developer = free, Basic/Standard = charged) | Standard Bastion in dev/test (could be Developer SKU — free); multiple Bastions across peered VNets (single Standard can serve all) |
+| `phase2-inventory/18-synapse.kql` | Resource Graph Explorer | Synapse Spark pools and auto-pause configuration | Spark pools without auto-pause; dedicated SQL pools running 24/7 |
+| `phase2-inventory/19-avd-orphaned-hosts.kql` | Resource Graph Explorer | AVD VMs not registered to any host pool — incurring compute/disk costs without serving any workload | VMs in deallocated state but with attached disks still billing; Premium disks on orphaned hosts that could be deleted |
 
 ### Phase 3 — Initial Utilisation Screen (run for all candidates identified in Phase 2)
 
@@ -305,6 +355,42 @@ Populate the relevant sections of `config.ps1` first.
 | --- | --- |
 | `phase3-utilisation/01-sql-pool-metrics-deepdive.ps1` | 7-day 1-minute DTU/CPU %, P50/P95/P99, business-hours P99, spike detection, full time-series CSV |
 | `phase3-utilisation/04-app-service-metrics-deepdive.ps1` | 7-day 1-minute CPU % and memory %, absolute GB, headroom check against candidate SKU |
+
+---
+
+## Pre-Summary Reconciliation — Run Before Writing the Summary Table
+
+### Step 1: Reconcile against the STATE investigation priority list
+
+Before writing the summary, take the investigation priority list from `STATE.md` and verify that every item on it is accounted for in one of three ways:
+
+1. **A confirmed finding** — written up with a quantified saving in the findings section
+2. **A Further Review item** — included in the Further Review section with the spend figure, what was found, and what would need to happen to convert it to a confirmed saving
+3. **Explicitly dismissed** — confirmed during the engagement that there is no actionable finding, with a brief note on why
+
+If any priority list item is missing from all three, it must be written up before the report is finalised — even if only as a Further Review entry. A high-spend item that silently disappears from the report is a gap.
+
+---
+
+## Pre-Summary Gap Check — Run Before Writing the Summary Table
+
+Before writing the summary section, work through the following checklist. The purpose is to catch opportunities that are adjacent to the findings already written but not yet considered. This is where gaps most commonly appear — not in the primary analysis, but in variants and related resource populations that sit in a different part of the inventory.
+
+For each category below, ask: **have I looked at all deployment patterns of this resource type — not just the primary one?**
+
+| Category | Primary population checked | Adjacent populations to verify |
+| --- | --- | --- |
+| **Managed disks** | Attached VM disks (tier-down based on metrics) | ASR replica disks (`ASRReplica` in name or `-asr` resource group) — do not need to match source tier; orphaned snapshots from deleted VMs; disks on deallocated/orphaned VMs |
+| **Virtual machines** | Running VMs (right-sizing) | Stopped-but-not-deallocated VMs (still billing); VMs in non-prod without auto-shutdown; AVD session hosts not registered to a host pool |
+| **App Service Plans** | Identified plans with utilisation data | Plans with **zero apps** (plan charge with no workload); plans in dev/test at production tier; Function App EP plans where Flex Consumption or Consumption would suffice |
+| **Storage accounts** | Accounts flagged in cost export | Accounts created automatically by App Service, Data Factory, or other services that are no longer needed; Classic storage accounts (to be migrated) |
+| **Log Analytics** | Primary workspaces (ingestion volume) | Application Insights instances sending to DefaultWorkspace (hidden ingestion); duplicate data sources (same resource sending to two workspaces) |
+| **Backup / Recovery** | Vault redundancy (GRS vs LRS) | Retention periods — are monthly/yearly snapshots accumulating beyond policy requirements? Are backup policies applied to resources that no longer exist? |
+| **Reservations** | Identified in cost export | Are any recommended SKU changes moving away from a currently reserved SKU? Flag all such recommendations with a reservation validation step. |
+| **Networking** | Firewall, Bastion, VWan, Private Endpoints | Public IPs in unassociated state; load balancers with empty backend pools; DDoS Protection Plans (very expensive if unnecessary) |
+| **AVD** | Session hosts in active host pools | Updater VMs or image build VMs running continuously; orphaned host pool VMs |
+
+If any row in this table reveals an unchecked population, go back and check it before finalising the report.
 
 ---
 

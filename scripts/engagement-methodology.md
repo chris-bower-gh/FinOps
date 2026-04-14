@@ -101,7 +101,7 @@ For each engagement, create a folder: `<customer-name>/`
   metrics/              # CSV from Azure Monitor metrics PowerShell scripts
   cost-exports/         # Cost export CSVs from Azure Portal
   analysis-notes/       # engagement-progress.md, cost-export-findings.md
-  HANDOVER.md           # Full context document for AI continuity
+  STATE.md           # Full context document for AI continuity
   report.md             # Final report (markdown)
   report.docx           # Final report (Word)
 ```

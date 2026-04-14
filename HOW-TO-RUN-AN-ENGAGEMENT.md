@@ -23,9 +23,85 @@ FinOps/
     metrics/
     resource-data/
     analysis-notes/
+    STATE.md
 ```
 
 Copy `scripts/config.ps1` into the customer folder and rename it — or just note that you'll edit the one in `scripts/` directly and reset it for the next customer.
+
+Create `STATE.md` using the structure below if one does not already exist. If it does exist (e.g. a colleague ran a previous engagement cycle), read it before starting — it contains the subscription map, out-of-scope items, and carry-forward items from prior cycles. This file persists across all engagement cycles for this customer — never delete it, only append to it.
+
+```markdown
+# [Customer Name] — FinOps Engagement State
+
+**Customer:** [Name]
+**Tenant ID:** [GUID]
+**Analyst:** [Name]
+
+---
+
+## Permanent Context
+
+### Subscription Map
+
+| Subscription Name | Subscription ID | Environment |
+| --- | --- | --- |
+| ... | ... | ... |
+
+### Out-of-Scope Items
+
+| Item | Monthly Spend | Reason |
+| --- | --- | --- |
+| ... | ... | ... |
+
+### Customer-Specific Constraints
+
+- [Any constraints, sensitivities, or architectural notes that affect recommendations]
+
+---
+
+## Engagement History
+
+### [Month Year] Engagement
+
+**Report delivered:** [date]
+**Confirmed monthly saving:** £X
+**Total spend reviewed:** £X/month
+
+**Findings delivered:**
+- [Finding 1] — £X/month
+- [Finding 2] — £X/month
+
+**Further Review items (not yet actioned):**
+- [Item] — £X/month spend — [what needs to happen to progress this]
+
+---
+
+## Current Cycle
+
+**Engagement started:** [date]
+**Phase:** [1 / 2 / 3 / Complete]
+**Current step:** [description]
+
+### Investigation Priority
+
+| # | Item | Monthly Spend | Notes |
+| --- | --- | --- | --- |
+| 1 | ... | £X | ... |
+
+### Data File Inventory
+
+| File | Location | Status |
+| --- | --- | --- |
+| Cost exports | `[customer]/cost-exports/` | Collected / Not yet collected |
+| Resource inventory | `[customer]/resource-data/` | Collected / Not yet collected |
+| Metrics | `[customer]/metrics/` | Collected / Not yet collected |
+
+### Next Steps
+
+- [ ] [Next action]
+```
+
+**Key rule:** when an engagement cycle completes, move the current cycle content into a new Engagement History entry, then reset the Current Cycle section for the next cycle. The history section is append-only — previous cycles are never edited.
 
 ---
 
@@ -137,9 +213,27 @@ You don't need to write anything yourself — just validate the findings as you 
 
 Once all findings are confirmed, the AI will produce a summary table with total savings and implementation effort. Review it, then:
 
-1. Copy `report.md` into Word (or ask the AI to format it)
+1. Run `generate_report.py` to produce the `.docx` deliverable
 2. Add the Synextra logo and standard cover page
 3. Send to the customer
+
+---
+
+## Step 10 — Close Out the STATE File
+
+After the report is delivered, update `STATE.md` so the next engagement cycle starts with accurate context:
+
+1. Move everything in the **Current Cycle** section into a new **Engagement History** entry, recording:
+   - Report delivery date
+   - Confirmed monthly saving (low-risk total)
+   - Each finding with its saving figure
+   - All Further Review items with their spend and what needs to happen next
+
+2. Reset the **Current Cycle** section — clear the phase, data file inventory, and next steps ready for the next cycle
+
+3. Update **Permanent Context** if anything changed — new subscriptions, revised out-of-scope items, new constraints
+
+The history section is append-only. Do not edit or delete previous cycle entries.
 
 ---
 
